@@ -999,23 +999,56 @@
             async evaluateWithGemini(apiKey, fullSentence, targetWord, keywords, goodSample, userInput, givenPart, imageUrl) {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-                const systemInstruction = `你是一位富有教學熱忱、專業且細心的國小國語文科老師。請審閱學生的造句，並依據句子品質給出「具鑑別度的動態分數（0~100分）」與具體講評。
+                const systemInstruction = `你是一位富有教學熱忱、專業且細心的國小國語文科老師。請評量學生自行輸入的造句，分數必須依實際品質變化，不可每次給相近的固定分數。
 
-【四大審閱與防誤判原則】
-1. 目標語詞檢核：必須精準包含「${targetWord}」。若完全未包含，判定 passed: false，給予 30~45 分。
-2. 預設提示字隔離（重要）：題目預設提供字句「${givenPart || '無'}」，學生輸入部分為「${userInput}」，組合後的句子為「${fullSentence}」。系統自動拼接的提示字「絕對不可」誤判為語句重複或贅語！
-3. 贅語與重複語病：只有當學生自己輸入的內容中出現無意義連續重複（如：「哥哥很認真哥哥很認真」），才判定為重複語病（passed: false，給予 45~58 分）。
-4. 圖文與錯字檢驗：若出現嚴重錯別字、語意不通或與圖片情境嚴重矛盾，給予 passed: false（50~65 分）並指出修改方向。
+【重要資料界線】
+題目預設提示文字是「${givenPart || '無'}」，學生自行輸入的內容是「${userInput}」，系統拼接後完整句子是「${fullSentence}」。
+目標語詞與參考關鍵字的命中，只能檢查「學生自行輸入的內容」，不可因提示文字或拼接後句子包含文字就算學生答對。系統拼接提示文字也不可被誤判為學生重複輸入。
 
-【五級距精細評分標準（請避免每次都給同一個固定數字，應依實際表現給出如 62、75、82、88、94、98 等細膩分數）】
-- 93 ~ 100 分（特優）：語句極為通順、情境具體生動、運用豐富形容詞或修辭（如譬喻、擬人），且緊扣主題與圖片。
-- 84 ~ 92 分（優良）：語意清楚流暢、結構完整、自然融入關鍵字，具備明確的人事物或細節描寫。
-- 72 ~ 83 分（通過／基礎）：有正確使用目標語詞且文法基本通順，但句型較平鋪直敘、細節較少（passed: true，並鼓勵學生可再加入形容詞或動作細節）。
-- 55 ~ 71 分（待加強）：包含目標語詞，但句子過短、語意略顯生硬、有小錯字或邏輯不夠通順（passed: false）。
-- 30 ~ 54 分（未達標）：漏掉目標語詞、嚴重重複贅語或完全離題（passed: false）。`;
+【四面向評分，總分請由前端計算】
+1. targetWordScore：目標語詞正確性，0~30 分。學生自行輸入確實包含「${targetWord}」且使用自然才給高分；未包含時必須是 0 分。
+2. grammarScore：文法通順與結構完整度，0~30 分。檢查語意、句型、錯字、重複贅語與邏輯，不可只依字數判斷。
+3. richnessScore：句意豐富度與修辭細節，0~25 分。檢查學生輸入中的人物、動作、感受、形容詞、修辭與參考關鍵字。
+4. contextScore：圖文情境契合度，0~15 分。若目前只有圖片網址或無法讀取圖片，請依題目文字與學生輸入保守評估，不可假裝已看懂圖片。
+
+通過門檻固定為 72 分。請提供 35 字內、適合國小學生理解的正向回饋，指出一項做得好的地方與一項可改進的地方。`;
+
+                let imagePart = null;
+                let imageStatus = '未提供圖片';
+                if (imageUrl) {
+                    try {
+                        let imageDataUrl = String(imageUrl).trim();
+                        if (!imageDataUrl.startsWith('data:image/')) {
+                            const imageResponse = await fetch(imageDataUrl);
+                            if (!imageResponse.ok) throw new Error(`圖片下載失敗（HTTP ${imageResponse.status}）`);
+                            const imageBlob = await imageResponse.blob();
+                            if (!imageBlob.type.startsWith('image/')) throw new Error('網址內容不是圖片');
+                            if (imageBlob.size > 4 * 1024 * 1024) throw new Error('圖片超過 4MB');
+                            imageDataUrl = await new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result);
+                                reader.onerror = () => reject(new Error('圖片轉換失敗'));
+                                reader.readAsDataURL(imageBlob);
+                            });
+                        }
+
+                        const imageMatch = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+                        if (!imageMatch) throw new Error('圖片格式不是可傳送的 Base64 圖片');
+                        imagePart = {
+                            inline_data: {
+                                mime_type: imageMatch[1],
+                                data: imageMatch[2]
+                            }
+                        };
+                        imageStatus = '圖片已附加，請依實際圖片內容評估情境契合度';
+                    } catch (error) {
+                        console.warn('圖片無法提供給 Gemini，改用文字線索評估情境', error);
+                        imageStatus = '圖片無法取得，只能依題目文字與學生輸入保守評估，不可假裝看懂圖片';
+                    }
+                }
 
                 const prompt = `請評閱學生的造句：
-- 題目圖片：${imageUrl && !imageUrl.startsWith('data:') ? imageUrl : '無'}
+- 題目圖片狀態：${imageStatus}
 - 題目提示文字：${givenPart || '無'}
 - 參考關鍵語詞：${(keywords || []).join('、') || targetWord}
 - 學生輸入部分：${userInput}
@@ -1023,14 +1056,20 @@
 - 必須使用語詞：${targetWord}
 
 請以 JSON 格式輸出評估結果（不可含有 Markdown）：
-{"passed": true/false, "score": 0到100之間的整數, "feedback": "35字內具體讚美與修改建議"}`;
+{"targetWordScore": 0到30的整數, "grammarScore": 0到30的整數, "richnessScore": 0到25的整數, "contextScore": 0到15的整數, "feedback": "35字內具體讚美與修改建議"}`;
 
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [
-                            { role: "user", parts: [{ text: systemInstruction + "\n\n" + prompt }] }
+                            {
+                                role: "user",
+                                parts: [
+                                    { text: systemInstruction + "\n\n" + prompt },
+                                    ...(imagePart ? [imagePart] : [])
+                                ]
+                            }
                         ],
                         generationConfig: {
                             temperature: 0.35,
@@ -1039,9 +1078,46 @@
                     })
                 });
 
+                if (!res.ok) {
+                    throw new Error(`Gemini API 回應失敗（HTTP ${res.status}）`);
+                }
+
                 const data = await res.json();
-                const textResp = data.candidates[0].content.parts[0].text;
-                return JSON.parse(textResp);
+                const textResp = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textResp) {
+                    throw new Error('Gemini 回傳內容格式不完整');
+                }
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(textResp);
+                } catch (error) {
+                    throw new Error('Gemini 回傳不是有效 JSON');
+                }
+
+                const clampScore = (value, max) => {
+                    const number = Number(value);
+                    if (!Number.isFinite(number)) throw new Error('Gemini 回傳了無效分數');
+                    return Math.max(0, Math.min(max, Math.round(number)));
+                };
+                const normalizedInput = String(userInput || '').replace(/[\s，。！？、；：「」『』（）(),.!?;:'"]/g, '');
+                const normalizedTarget = String(targetWord || '').replace(/[\s，。！？、；：「」『』（）(),.!?;:'"]/g, '');
+                const targetWordScore = normalizedTarget && normalizedInput.includes(normalizedTarget)
+                    ? clampScore(parsed.targetWordScore, 30)
+                    : 0;
+                const grammarScore = clampScore(parsed.grammarScore, 30);
+                const richnessScore = clampScore(parsed.richnessScore, 25);
+                const contextScore = clampScore(parsed.contextScore, 15);
+                const score = targetWordScore + grammarScore + richnessScore + contextScore;
+                const feedback = String(parsed.feedback || '').trim();
+                if (!feedback) throw new Error('Gemini 未提供回饋文字');
+
+                return {
+                    passed: score >= 72,
+                    score,
+                    feedback,
+                    breakdown: { targetWord: targetWordScore, grammar: grammarScore, richness: richnessScore, context: contextScore }
+                };
             },
 
             // 無 API Key 時的四面向動態評分；只分析文字，不假裝辨識圖片。
