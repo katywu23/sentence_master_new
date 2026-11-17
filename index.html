@@ -12,7 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- LZString (高效能網址字串壓縮) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
-    <!-- QRCode.js (純前端原生生成 QR Code，解決相機掃描辨識與外接 API 阻擋問題) -->
+    <!-- QRCode.js (純前端原生生成 QR Code) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -198,18 +198,35 @@
                             <div id="sentenceAssembly" class="text-base font-bold text-slate-800 leading-relaxed bg-white p-3 rounded-xl border border-indigo-100 shadow-sm"></div>
                         </div>
 
-                        <div class="space-y-1.5 relative">
-                            <div class="flex justify-between items-center text-xs font-bold text-slate-600">
+                        <div class="space-y-2 relative">
+                            <div class="flex flex-wrap justify-between items-center gap-2 text-xs font-bold text-slate-600">
                                 <span><i class="fa-solid fa-pen-nib text-indigo-500 me-1"></i> 請 <strong id="inputPromptPlayerName" class="text-amber-600">學生 1</strong> 輸入造句（必須含有「<strong id="inputPromptWord" class="text-indigo-600"></strong>」）：</span>
-                                <span id="charCount" class="text-slate-400 font-mono">0 字</span>
+                                <div class="flex items-center gap-2">
+                                    <!-- 語音模式切換（預設：重講覆蓋，避免重複累加） -->
+                                    <button id="speechModeToggleBtn" onclick="app.toggleSpeechMode()" type="button"
+                                            title="切換語音輸入模式：重講覆蓋舊文字 或 接續在後方"
+                                            class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center gap-1">
+                                        <i id="speechModeIcon" class="fa-solid fa-rotate"></i>
+                                        <span id="speechModeText">語音模式：重講覆蓋</span>
+                                    </button>
+                                    <span id="charCount" class="text-slate-400 font-mono">0 字</span>
+                                </div>
                             </div>
 
                             <div class="relative">
                                 <textarea id="sentenceInput" rows="3" 
                                           placeholder="請打字輸入，或按下「語音輸入」用語音說出句子..." 
-                                          class="w-full p-3.5 pr-32 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none font-medium text-slate-800 text-base resize-none transition bg-slate-50 focus:bg-white"></textarea>
+                                          class="w-full p-3.5 pb-12 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none font-medium text-slate-800 text-base resize-none transition bg-slate-50 focus:bg-white"></textarea>
 
-                                <div class="absolute right-3 bottom-3">
+                                <!-- 右下角工具列：一鍵清除 + 語音輸入 -->
+                                <div class="absolute right-3 bottom-3 flex items-center gap-2">
+                                    <button id="clearInputBtn" onclick="app.clearSentenceInput()" type="button"
+                                            title="一鍵清空目前輸入的造句"
+                                            class="px-3 py-2 rounded-xl text-xs font-black text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm flex items-center gap-1 transition">
+                                        <i class="fa-solid fa-eraser"></i>
+                                        <span>一鍵清除</span>
+                                    </button>
+
                                     <button id="micBtn" onclick="app.toggleSpeech()" type="button" 
                                             class="px-3.5 py-2 rounded-xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow flex items-center gap-1.5 transition">
                                         <i id="micIcon" class="fa-solid fa-microphone"></i>
@@ -220,7 +237,7 @@
 
                             <div id="recordingNotice" class="hidden flex items-center gap-2 text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
                                 <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-                                <span>正在聆聽中... 再按一次「停止輸入語音」即可結束！</span>
+                                <span>正在聆聽中... 說完請再按一次「停止輸入語音」即可結束！</span>
                             </div>
                         </div>
 
@@ -317,7 +334,7 @@
         </div>
     </div>
 
-    <!-- 課堂分享與同步指南彈窗（全方位相容提示與原生 Canvas QR Code 渲染） -->
+    <!-- 課堂分享與同步指南彈窗 -->
     <div id="shareModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-indigo-100 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -501,6 +518,7 @@
 
             isRecording: false,
             recognition: null,
+            speechOverwriteMode: true, // true = 每次開啟語音輸入覆蓋舊內容；false = 接續在後方
 
             syncChannel: null,
 
@@ -557,7 +575,6 @@
                 this.showScreen('home');
             },
 
-            // 支援網址極簡壓縮與資料還原
             checkUrlForQuestionsData() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const qCompressed = urlParams.get('qc');
@@ -582,7 +599,6 @@
                                     };
                                 });
                                 localStorage.setItem('sentence_app_questions', JSON.stringify(this.questions));
-                                console.log('已從 URL 成功解壓縮載入題庫！');
                             }
                         }
                     } catch(e) {
@@ -701,8 +717,7 @@
                 const currentPlayer = this.playerList[this.currentPlayerIdx];
                 if (!q || !currentPlayer) return;
 
-                document.getElementById('sentenceInput').value = '';
-                document.getElementById('charCount').textContent = '0 字';
+                this.clearSentenceInput(false);
 
                 document.getElementById('sampleSentenceBox').classList.add('hidden');
                 document.getElementById('sampleArrow').classList.remove('rotate-180');
@@ -738,6 +753,39 @@
                 document.getElementById('sampleSentenceContent').textContent = q.goodSample || '尚無示範句子';
 
                 this.updateSentenceAssembly('');
+            },
+
+            // 一鍵清除輸入框與預覽
+            clearSentenceInput(focusAfter = true) {
+                if (this.isRecording && this.recognition) {
+                    try { this.recognition.stop(); } catch(e) {}
+                    this.stopSpeech();
+                }
+                const input = document.getElementById('sentenceInput');
+                if (input) {
+                    input.value = '';
+                    document.getElementById('charCount').textContent = '0 字';
+                    this.updateSentenceAssembly('');
+                    if (focusAfter) input.focus();
+                }
+            },
+
+            // 切換語音輸入模式（重講覆蓋 vs 接續輸入）
+            toggleSpeechMode() {
+                this.speechOverwriteMode = !this.speechOverwriteMode;
+                const btn = document.getElementById('speechModeToggleBtn');
+                const icon = document.getElementById('speechModeIcon');
+                const text = document.getElementById('speechModeText');
+
+                if (this.speechOverwriteMode) {
+                    btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center gap-1";
+                    icon.className = "fa-solid fa-rotate";
+                    text.textContent = "語音模式：重講覆蓋";
+                } else {
+                    btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition flex items-center gap-1";
+                    icon.className = "fa-solid fa-plus";
+                    text.textContent = "語音模式：接續在後";
+                }
             },
 
             toggleSampleSentence() {
@@ -788,6 +836,13 @@
 
                     this.recognition.onstart = () => {
                         this.isRecording = true;
+                        // 若為「重講覆蓋」模式，開始錄音時自動清空舊文字，避免重複累加
+                        if (this.speechOverwriteMode) {
+                            const input = document.getElementById('sentenceInput');
+                            input.value = '';
+                            document.getElementById('charCount').textContent = '0 字';
+                            this.updateSentenceAssembly('');
+                        }
                         const micBtn = document.getElementById('micBtn');
                         micBtn.className = "px-3.5 py-2 rounded-xl text-xs font-black text-white bg-rose-500 recording-pulse shadow flex items-center gap-1.5 transition";
                         document.getElementById('micText').textContent = "停止輸入語音";
@@ -811,7 +866,13 @@
 
                         if (text) {
                             const input = document.getElementById('sentenceInput');
-                            input.value = input.value ? input.value + text : text;
+                            if (input.value && !this.speechOverwriteMode) {
+                                // 接續模式：若前句結尾無標點，自動補上逗號避免黏成一團
+                                const needsComma = !/[，。！？、,.!?]$/.test(input.value.trim());
+                                input.value = input.value.trim() + (needsComma ? '，' : '') + text;
+                            } else {
+                                input.value = input.value ? input.value + text : text;
+                            }
                             document.getElementById('charCount').textContent = `${input.value.length} 字`;
                             this.updateSentenceAssembly(input.value);
                         }
@@ -938,25 +999,31 @@
             async evaluateWithGemini(apiKey, fullSentence, targetWord, keywords, goodSample, userInput, givenPart, imageUrl) {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-                const systemInstruction = `你是一位極為細心、嚴謹的國小國語文科老師。請審閱學生的造句，並針對錯別字、重複語病、圖文不符、邏輯矛盾進行診斷。
+                const systemInstruction = `你是一位富有教學熱忱、專業且細心的國小國語文科老師。請審閱學生的造句，並依據句子品質給出「具鑑別度的動態分數（0~100分）」與具體講評。
 
-四大審閱原則：
-1. 目標語詞檢核：必須精準包含「${targetWord}」。未包含者給予 passed: false，分數 40 分。
-2. 預設提示字隔離（重要）：題目預設提供字句「${givenPart || '無'}」，學生輸入部分為「${userInput}」，組合後的句子為「${fullSentence}」。請切記：拼接提示字是系統設計，絕對不可將系統正常的拼接誤判為「語句重複」或「贅語」！
-3. 贅語與重複語病：只有當學生自己輸入的內容中出現無意義連續重複（如：「讓人心情愉悅，讓人心情愉悅。」）才判定為重複語病（passed: false, 50分）。
-4. 圖文與錯字檢驗：若出現嚴重錯別字，或造句與圖片情境嚴重矛盾（如白天寫晚上），給予 passed: false，分數 55 分並說明原因。
+【四大審閱與防誤判原則】
+1. 目標語詞檢核：必須精準包含「${targetWord}」。若完全未包含，判定 passed: false，給予 30~45 分。
+2. 預設提示字隔離（重要）：題目預設提供字句「${givenPart || '無'}」，學生輸入部分為「${userInput}」，組合後的句子為「${fullSentence}」。系統自動拼接的提示字「絕對不可」誤判為語句重複或贅語！
+3. 贅語與重複語病：只有當學生自己輸入的內容中出現無意義連續重複（如：「哥哥很認真哥哥很認真」），才判定為重複語病（passed: false，給予 45~58 分）。
+4. 圖文與錯字檢驗：若出現嚴重錯別字、語意不通或與圖片情境嚴重矛盾，給予 passed: false（50~65 分）並指出修改方向。
 
-若句子通順且無上述問題，請給予 passed: true，分數 85~98 分！`;
+【五級距精細評分標準（請避免每次都給同一個固定數字，應依實際表現給出如 62、75、82、88、94、98 等細膩分數）】
+- 93 ~ 100 分（特優）：語句極為通順、情境具體生動、運用豐富形容詞或修辭（如譬喻、擬人），且緊扣主題與圖片。
+- 84 ~ 92 分（優良）：語意清楚流暢、結構完整、自然融入關鍵字，具備明確的人事物或細節描寫。
+- 72 ~ 83 分（通過／基礎）：有正確使用目標語詞且文法基本通順，但句型較平鋪直敘、細節較少（passed: true，並鼓勵學生可再加入形容詞或動作細節）。
+- 55 ~ 71 分（待加強）：包含目標語詞，但句子過短、語意略顯生硬、有小錯字或邏輯不夠通順（passed: false）。
+- 30 ~ 54 分（未達標）：漏掉目標語詞、嚴重重複贅語或完全離題（passed: false）。`;
 
                 const prompt = `請評閱學生的造句：
 - 題目圖片：${imageUrl && !imageUrl.startsWith('data:') ? imageUrl : '無'}
 - 題目提示文字：${givenPart || '無'}
+- 參考關鍵語詞：${(keywords || []).join('、') || targetWord}
 - 學生輸入部分：${userInput}
 - 拼接後完整句子：${fullSentence}
 - 必須使用語詞：${targetWord}
 
 請以 JSON 格式輸出評估結果（不可含有 Markdown）：
-{"passed": true/false, "score": 數字, "feedback": "30字內具體診斷評語"}`;
+{"passed": true/false, "score": 0到100之間的整數, "feedback": "35字內具體讚美與修改建議"}`;
 
                 const res = await fetch(url, {
                     method: 'POST',
@@ -966,7 +1033,7 @@
                             { role: "user", parts: [{ text: systemInstruction + "\n\n" + prompt }] }
                         ],
                         generationConfig: {
-                            temperature: 0.1,
+                            temperature: 0.35,
                             responseMimeType: "application/json"
                         }
                     })
@@ -977,21 +1044,94 @@
                 return JSON.parse(textResp);
             },
 
+            // 無 API Key 時的四面向動態評分；只分析文字，不假裝辨識圖片。
             fallbackEvaluation(input, fullSentence, targetWord, keywords, givenPart) {
-                if (!fullSentence.includes(targetWord)) {
-                    return { passed: false, score: 50, feedback: `❌ 造句未包含指定語詞「${targetWord}」，請加入此語詞！` };
-                }
-                
-                const cleanInput = input.replace(/[,，。]/g, '').trim();
-                const halfLen = Math.floor(cleanInput.length / 2);
-                if (cleanInput.length > 6 && cleanInput.substring(0, halfLen) === cleanInput.substring(halfLen)) {
-                    return { passed: false, score: 50, feedback: `⚠️ 您的輸入出現了重複贅語，請修改！` };
+                const studentText = String(input || '').trim();
+                const target = String(targetWord || '').trim();
+                const keywordList = Array.isArray(keywords) ? keywords : [];
+                const removeSpacesAndPunctuation = (text) => String(text || '')
+                    .replace(/[\s，。！？、；：「」『』（）(),.!?;:'"]/g, '');
+                const inputForCheck = removeSpacesAndPunctuation(studentText);
+                const targetForCheck = removeSpacesAndPunctuation(target);
+                const hasTargetWord = Boolean(targetForCheck) && inputForCheck.includes(targetForCheck);
+                const matchedKeywords = keywordList
+                    .map(keyword => String(keyword || '').trim())
+                    .filter(keyword => keyword && keyword !== target)
+                    .filter(keyword => inputForCheck.includes(removeSpacesAndPunctuation(keyword)));
+
+                // 重複只作為扣分因素，仍然完整計算四個面向，避免固定分數。
+                const hasRepeatedSentence = inputForCheck.length >= 6 && (() => {
+                    const halfLength = Math.floor(inputForCheck.length / 2);
+                    return inputForCheck.length % 2 === 0 &&
+                        inputForCheck.slice(0, halfLength) === inputForCheck.slice(halfLength);
+                })();
+                const hasRepeatedPhrase = /(.{2,})\1/.test(inputForCheck);
+                const hasRepeatedPunctuation = /([，。！？、])\1+/.test(studentText);
+                const hasRepetition = hasRepeatedSentence || hasRepeatedPhrase || hasRepeatedPunctuation;
+
+                // 1. 目標語詞正確性（30 分）：只看學生自行輸入，不能被 givenPart 補分。
+                const targetScore = hasTargetWord ? 30 : 0;
+
+                // 2. 文法通順與結構完整度（30 分）：綜合結構、詞性線索、標點與重複。
+                let grammarScore = 0;
+                if (studentText) grammarScore += 6;
+                if (inputForCheck.length >= 4) grammarScore += 6;
+                if (inputForCheck.length >= 7) grammarScore += 5;
+                if (/[我你他她它們大家老師同學小朋友孩子家人]/.test(studentText)) grammarScore += 3;
+                if (/[是有在把被讓和跟與對從向為因為所以但是可是而且如果就]/.test(studentText)) grammarScore += 3;
+                if (/[吃喝看聽說寫讀做跑走跳玩喜歡幫助發現完成學習]/.test(studentText)) grammarScore += 4;
+                if (/[，。！？]/.test(studentText)) grammarScore += 2;
+                if (hasRepetition) grammarScore -= 10;
+                if (hasRepeatedPunctuation) grammarScore -= 3;
+                grammarScore = Math.max(0, Math.min(30, grammarScore));
+
+                // 3. 句意豐富度與修辭細節（25 分）：關鍵字也只能從學生輸入中命中。
+                let richnessScore = Math.min(10, matchedKeywords.length * 5);
+                const detailMatches = studentText.match(/的|地|得|很|非常|一起|先|再|突然|終於|認真|開心|漂亮|勇敢|小心|努力|熱鬧|安靜|像|彷彿|因為|所以|雖然|但是|不但|而且/g) || [];
+                richnessScore += Math.min(8, detailMatches.length * 2);
+                if (/[在於從到向對]/.test(studentText)) richnessScore += 3;
+                if (/[，。！？]/.test(studentText)) richnessScore += 2;
+                if (hasRepetition) richnessScore -= 6;
+                richnessScore = Math.max(0, Math.min(25, richnessScore));
+
+                // 4. 圖文情境契合度（15 分）：沒有圖片辨識能力，只依文字線索保守推估。
+                let contextScore = studentText ? 6 : 0;
+                contextScore += Math.min(6, matchedKeywords.length * 3);
+                if (/(在家|在學校|在教室|在操場|在公園|早上|下午|晚上|今天|昨天|明天)/.test(studentText)) contextScore += 3;
+                if (hasRepetition) contextScore -= 4;
+                contextScore = Math.max(0, Math.min(15, contextScore));
+
+                const score = Math.max(0, Math.min(100,
+                    targetScore + grammarScore + richnessScore + contextScore));
+                const passed = score >= 72;
+                const suggestions = [];
+
+                if (!hasTargetWord) suggestions.push(`請在自己輸入的內容中加入指定語詞「${target || '目標語詞'}」`);
+                if (hasRepetition) suggestions.push('刪掉重複的詞句，讓句子更精簡');
+                if (grammarScore < 22) suggestions.push('補上誰、做什麼或事情發生的情境');
+                if (richnessScore < 14) suggestions.push('加入動作、感受或形容詞細節');
+                if (contextScore < 9) suggestions.push('可加入和題目關鍵字相關的情境');
+
+                let feedback;
+                if (passed) {
+                    feedback = `✅ 造句通過！已正確使用「${target}」，${suggestions.length ? suggestions[0] : '句意清楚又有細節'}。`;
+                } else if (!hasTargetWord) {
+                    feedback = `💡 句子有想法！目前是 ${score} 分，請先在自己輸入的內容中加入「${target}」，再補充完整情境。`;
+                } else {
+                    feedback = `💡 目前是 ${score} 分，已用到「${target}」；${suggestions.slice(0, 2).join('，') || '再讓句子更完整'}，就會更進步喔！`;
                 }
 
-                if (fullSentence.length < 4) {
-                    return { passed: false, score: 55, feedback: `❌ 造句過短，請補充更完整的情境內容！` };
-                }
-                return { passed: true, score: 88, feedback: `✅ 句子通順，精準使用了「${targetWord}」！` };
+                return {
+                    passed,
+                    score,
+                    feedback,
+                    breakdown: {
+                        targetWord: targetScore,
+                        grammar: grammarScore,
+                        richness: richnessScore,
+                        context: contextScore
+                    }
+                };
             },
 
             showResultModal(passed, score, fullSentence, feedback, sampleAnswer) {
@@ -1109,7 +1249,6 @@
                 this.startGame('practice');
             },
 
-            // 核心修正：使用 QRCode.js 原生 Canvas 生成 QR code，絕不呼叫外接 API，完美跳出相機連結！
             openShareModal() {
                 document.getElementById('shareModal').classList.remove('hidden');
                 
@@ -1124,7 +1263,6 @@
                 let baseUrl = window.location.href.split('?')[0];
 
                 try {
-                    // 極簡資料瘦身：只保留核心關鍵字，濾除超長 Data URL Base64 圖片以防容量過大
                     const miniQuestions = this.questions.map(q => {
                         let img = q.image || '';
                         if (img.startsWith('data:') || img.length > 150) {
@@ -1147,9 +1285,8 @@
                     document.getElementById('syncUrlDisplayInput').value = syncUrl;
 
                     const qrcodeContainer = document.getElementById('qrcodeCanvas');
-                    qrcodeContainer.innerHTML = ''; // 先清空舊內容
+                    qrcodeContainer.innerHTML = '';
 
-                    // 使用 QRCode.js 在前端 Canvas/SVG 直接渲染標準 100% 辨識率的 QR Code
                     if (typeof QRCode !== 'undefined') {
                         new QRCode(qrcodeContainer, {
                             text: syncUrl,
@@ -1160,7 +1297,6 @@
                             correctLevel : QRCode.CorrectLevel.L
                         });
                     } else {
-                        // 備用靜態圖片 fallback
                         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(syncUrl)}`;
                         qrcodeContainer.innerHTML = `<img src="${qrApiUrl}" alt="QR Code" class="w-44 h-44 object-contain rounded-lg shadow-sm" />`;
                     }
