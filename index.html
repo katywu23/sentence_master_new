@@ -232,6 +232,20 @@
                             </div>
                         </div>
 
+                        <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+                            <button onclick="app.toggleSampleSentence()" type="button" class="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 flex justify-between items-center transition">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-eye text-indigo-500"></i>
+                                    <span>點擊檢視「示範句子」參考</span>
+                                </span>
+                                <i id="sampleArrow" class="fa-solid fa-chevron-down transition-transform"></i>
+                            </button>
+                            <div id="sampleSentenceBox" class="hidden p-3 bg-white border-t border-slate-200 text-xs text-slate-700 font-medium leading-relaxed">
+                                <span class="font-bold text-indigo-700 block mb-1">💡 參考示範：</span>
+                                <p id="sampleSentenceContent"></p>
+                            </div>
+                        </div>
+
                         <button id="submitBtn" onclick="app.evaluateSentence()" class="w-full py-3.5 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl font-black text-lg shadow-lg hover:shadow-indigo-200 transition flex items-center justify-center space-x-2">
                             <i class="fa-solid fa-wand-magic-sparkles"></i>
                             <span>AI 智慧診斷與送出</span>
@@ -696,6 +710,8 @@
 
                 this.clearSentenceInput(false);
 
+                document.getElementById('sampleSentenceBox').classList.add('hidden');
+                document.getElementById('sampleArrow').classList.remove('rotate-180');
 
                 document.getElementById('displayCurrentPlayer').textContent = currentPlayer.name;
                 document.getElementById('inputPromptPlayerName').textContent = currentPlayer.name;
@@ -714,6 +730,22 @@
                     });
                 } else {
                     keywordContainer.innerHTML = `<span class="px-3 py-1 bg-amber-200 text-amber-950 font-black rounded-xl text-sm border border-amber-300 shadow-sm"><i class="fa-solid fa-tag me-1 text-amber-600"></i>${q.targetWord}</span>`;
+                }
+
+                document.getElementById('sampleSentenceContent').textContent = q.goodSample || '尚無示範句子';
+            },
+
+            toggleSampleSentence() {
+                const box = document.getElementById('sampleSentenceBox');
+                const arrow = document.getElementById('sampleArrow');
+                const isHidden = box.classList.contains('hidden');
+
+                if (isHidden) {
+                    box.classList.remove('hidden');
+                    arrow.classList.add('rotate-180');
+                } else {
+                    box.classList.add('hidden');
+                    arrow.classList.remove('rotate-180');
                 }
             },
 
