@@ -50,7 +50,6 @@
                 </div>
                 <div>
                     <h1 class="text-xl md:text-2xl font-black tracking-wide">造句王 PK 擂台</h1>
-                    <p class="text-xs text-indigo-200">AI 語意判讀與課堂多人輪流造句評量</p>
                 </div>
             </div>
 
@@ -190,17 +189,9 @@
                             <div id="keywordTags" class="flex flex-wrap gap-2 pt-1"></div>
                         </div>
 
-                        <div class="bg-indigo-50/70 p-3.5 rounded-2xl border border-indigo-100 space-y-1.5">
-                            <div class="text-xs font-bold text-indigo-700 flex justify-between items-center">
-                                <span>完整造句組裝預覽（請造：<span id="slotPositionText" class="underline font-black text-indigo-900">前半句</span>）</span>
-                                <i class="fa-solid fa-arrows-split-up-and-left text-indigo-400"></i>
-                            </div>
-                            <div id="sentenceAssembly" class="text-base font-bold text-slate-800 leading-relaxed bg-white p-3 rounded-xl border border-indigo-100 shadow-sm"></div>
-                        </div>
-
                         <div class="space-y-2 relative">
                             <div class="flex flex-wrap justify-between items-center gap-2 text-xs font-bold text-slate-600">
-                                <span><i class="fa-solid fa-pen-nib text-indigo-500 me-1"></i> 請 <strong id="inputPromptPlayerName" class="text-amber-600">學生 1</strong> 輸入造句（必須含有「<strong id="inputPromptWord" class="text-indigo-600"></strong>」）：</span>
+                                <span><i class="fa-solid fa-pen-nib text-indigo-500 me-1"></i> 請 <strong id="inputPromptPlayerName" class="text-amber-600">學生 1</strong> 輸入造句：</span>
                                 <div class="flex items-center gap-2">
                                     <!-- 語音模式切換（預設：重講覆蓋，避免重複累加） -->
                                     <button id="speechModeToggleBtn" onclick="app.toggleSpeechMode()" type="button"
@@ -238,20 +229,6 @@
                             <div id="recordingNotice" class="hidden flex items-center gap-2 text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
                                 <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
                                 <span>正在聆聽中... 說完請再按一次「停止輸入語音」即可結束！</span>
-                            </div>
-                        </div>
-
-                        <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
-                            <button onclick="app.toggleSampleSentence()" type="button" class="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 flex justify-between items-center transition">
-                                <span class="flex items-center gap-1.5">
-                                    <i class="fa-solid fa-eye text-indigo-500"></i>
-                                    <span>點擊檢視「示範句子」參考</span>
-                                </span>
-                                <i id="sampleArrow" class="fa-solid fa-chevron-down transition-transform"></i>
-                            </button>
-                            <div id="sampleSentenceBox" class="hidden p-3 bg-white border-t border-slate-200 text-xs text-slate-700 font-medium leading-relaxed">
-                                <span class="font-bold text-indigo-700 block mb-1">💡 參考示範：</span>
-                                <p id="sampleSentenceContent"></p>
                             </div>
                         </div>
 
@@ -719,8 +696,6 @@
 
                 this.clearSentenceInput(false);
 
-                document.getElementById('sampleSentenceBox').classList.add('hidden');
-                document.getElementById('sampleArrow').classList.remove('rotate-180');
 
                 document.getElementById('displayCurrentPlayer').textContent = currentPlayer.name;
                 document.getElementById('inputPromptPlayerName').textContent = currentPlayer.name;
@@ -728,17 +703,8 @@
                 document.getElementById('displayPlayerTurn').textContent = `第 ${this.currentPlayerIdx + 1} / ${this.playerList.length} 位`;
 
                 document.getElementById('targetWordText').textContent = q.targetWord;
-                document.getElementById('inputPromptWord').textContent = q.targetWord;
                 document.getElementById('questionImage').src = q.image;
 
-                const slotText = document.getElementById('slotPositionText');
-                if (q.missingPosition === 'none') {
-                    slotText.textContent = '完整造句（學生造整句）';
-                } else if (q.missingPosition === 'front') {
-                    slotText.textContent = '前半句';
-                } else {
-                    slotText.textContent = '後半句';
-                }
 
                 const keywordContainer = document.getElementById('keywordTags');
                 keywordContainer.innerHTML = '';
@@ -749,10 +715,6 @@
                 } else {
                     keywordContainer.innerHTML = `<span class="px-3 py-1 bg-amber-200 text-amber-950 font-black rounded-xl text-sm border border-amber-300 shadow-sm"><i class="fa-solid fa-tag me-1 text-amber-600"></i>${q.targetWord}</span>`;
                 }
-
-                document.getElementById('sampleSentenceContent').textContent = q.goodSample || '尚無示範句子';
-
-                this.updateSentenceAssembly('');
             },
 
             // 一鍵清除輸入框與預覽
@@ -765,7 +727,6 @@
                 if (input) {
                     input.value = '';
                     document.getElementById('charCount').textContent = '0 字';
-                    this.updateSentenceAssembly('');
                     if (focusAfter) input.focus();
                 }
             },
@@ -788,42 +749,12 @@
                 }
             },
 
-            toggleSampleSentence() {
-                const box = document.getElementById('sampleSentenceBox');
-                const arrow = document.getElementById('sampleArrow');
-                const isHidden = box.classList.contains('hidden');
-
-                if (isHidden) {
-                    box.classList.remove('hidden');
-                    arrow.classList.add('rotate-180');
-                } else {
-                    box.classList.add('hidden');
-                    arrow.classList.remove('rotate-180');
-                }
-            },
-
             bindInputEvents() {
                 const input = document.getElementById('sentenceInput');
                 input.addEventListener('input', (e) => {
                     const val = e.target.value;
                     document.getElementById('charCount').textContent = `${val.length} 字`;
-                    this.updateSentenceAssembly(val);
                 });
-            },
-
-            updateSentenceAssembly(userInput) {
-                const q = this.questions[this.currentIdx];
-                const assemblyEl = document.getElementById('sentenceAssembly');
-                const cleanInput = userInput.trim() ? userInput : '【請在此造出句子...】';
-                const userTag = `<span class="inline-block px-2 py-0.5 bg-amber-100 text-amber-950 border-b-2 border-amber-400 rounded font-black">${cleanInput}</span>`;
-
-                if (q.missingPosition === 'none') {
-                    assemblyEl.innerHTML = userTag;
-                } else if (q.missingPosition === 'front') {
-                    assemblyEl.innerHTML = `${userTag} <span class="text-indigo-900 font-bold">${q.givenPart}</span>`;
-                } else {
-                    assemblyEl.innerHTML = `<span class="text-indigo-900 font-bold">${q.givenPart}</span> ${userTag}`;
-                }
             },
 
             initSpeechRecognition() {
@@ -841,7 +772,6 @@
                             const input = document.getElementById('sentenceInput');
                             input.value = '';
                             document.getElementById('charCount').textContent = '0 字';
-                            this.updateSentenceAssembly('');
                         }
                         const micBtn = document.getElementById('micBtn');
                         micBtn.className = "px-3.5 py-2 rounded-xl text-xs font-black text-white bg-rose-500 recording-pulse shadow flex items-center gap-1.5 transition";
@@ -874,7 +804,6 @@
                                 input.value = input.value ? input.value + text : text;
                             }
                             document.getElementById('charCount').textContent = `${input.value.length} 字`;
-                            this.updateSentenceAssembly(input.value);
                         }
                     };
 
@@ -993,7 +922,7 @@
                     try { confetti({ particleCount: 40, spread: 50 }); } catch(e){}
                 }
 
-                this.showResultModal(passed, score, fullSentence, feedback, q.goodSample);
+                this.showResultModal(passed, score, fullSentence, feedback, '');
             },
 
             async evaluateWithGemini(apiKey, fullSentence, targetWord, keywords, goodSample, userInput, givenPart, imageUrl) {
@@ -1005,13 +934,8 @@
 題目預設提示文字是「${givenPart || '無'}」，學生自行輸入的內容是「${userInput}」，系統拼接後完整句子是「${fullSentence}」。
 目標語詞與參考關鍵字的命中，只能檢查「學生自行輸入的內容」，不可因提示文字或拼接後句子包含文字就算學生答對。系統拼接提示文字也不可被誤判為學生重複輸入。
 
-【四面向評分，總分請由前端計算】
-1. targetWordScore：目標語詞正確性，0~30 分。學生自行輸入確實包含「${targetWord}」且使用自然才給高分；未包含時必須是 0 分。
-2. grammarScore：文法通順與結構完整度，0~30 分。檢查語意、句型、錯字、重複贅語與邏輯，不可只依字數判斷。
-3. richnessScore：句意豐富度與修辭細節，0~25 分。檢查學生輸入中的人物、動作、感受、形容詞、修辭與參考關鍵字。
-4. contextScore：圖文情境契合度，0~15 分。若目前只有圖片網址或無法讀取圖片，請依題目文字與學生輸入保守評估，不可假裝已看懂圖片。
-
-通過門檻固定為 72 分。請提供 35 字內、適合國小學生理解的正向回饋，指出一項做得好的地方與一項可改進的地方。`;
+【評分方式：60 至 95 分】
+只要學生自行輸入包含指定語詞，且完整句子符合基本句子結構、邏輯正確、語意通順流暢，就應給予 60 分以上；若能自然加入形容詞、副詞、更多細節、優美語句或修辭，可逐步提高分數，最高 95 分。不要因未使用所有參考關鍵字、句子較短或沒有配合圖片而大幅扣分。若未包含指定語詞，仍給 60 分起的鼓勵性分數，並溫和提醒補上語詞。依表現拉開分數，不要全部給相同分數。請提供 35 字內、適合國小學生理解的正向回饋，肯定優點並提供一項可改善方向。`;
 
                 let imagePart = null;
                 let imageStatus = '未提供圖片';
@@ -1053,10 +977,10 @@
 - 參考關鍵語詞：${(keywords || []).join('、') || targetWord}
 - 學生輸入部分：${userInput}
 - 拼接後完整句子：${fullSentence}
-- 必須使用語詞：${targetWord}
+- 指定語詞：${targetWord}
 
 請以 JSON 格式輸出評估結果（不可含有 Markdown）：
-{"targetWordScore": 0到30的整數, "grammarScore": 0到30的整數, "richnessScore": 0到25的整數, "contextScore": 0到15的整數, "feedback": "35字內具體讚美與修改建議"}`;
+{"score": 60到95的整數, "feedback": "35字內具體讚美與修改建議"}`;
 
                 const res = await fetch(url, {
                     method: 'POST',
@@ -1095,28 +1019,20 @@
                     throw new Error('Gemini 回傳不是有效 JSON');
                 }
 
-                const clampScore = (value, max) => {
+                const clampScore = (value, min, max) => {
                     const number = Number(value);
                     if (!Number.isFinite(number)) throw new Error('Gemini 回傳了無效分數');
-                    return Math.max(0, Math.min(max, Math.round(number)));
+                    return Math.max(min, Math.min(max, Math.round(number)));
                 };
-                const normalizedInput = String(userInput || '').replace(/[\s，。！？、；：「」『』（）(),.!?;:'"]/g, '');
-                const normalizedTarget = String(targetWord || '').replace(/[\s，。！？、；：「」『』（）(),.!?;:'"]/g, '');
-                const targetWordScore = normalizedTarget && normalizedInput.includes(normalizedTarget)
-                    ? clampScore(parsed.targetWordScore, 30)
-                    : 0;
-                const grammarScore = clampScore(parsed.grammarScore, 30);
-                const richnessScore = clampScore(parsed.richnessScore, 25);
-                const contextScore = clampScore(parsed.contextScore, 15);
-                const score = targetWordScore + grammarScore + richnessScore + contextScore;
+                const score = clampScore(parsed.score, 60, 95);
                 const feedback = String(parsed.feedback || '').trim();
                 if (!feedback) throw new Error('Gemini 未提供回饋文字');
 
                 return {
-                    passed: score >= 72,
+                    passed: true,
                     score,
                     feedback,
-                    breakdown: { targetWord: targetWordScore, grammar: grammarScore, richness: richnessScore, context: contextScore }
+                    breakdown: { total: score }
                 };
             },
 
@@ -1177,9 +1093,12 @@
                 if (hasRepetition) contextScore -= 4;
                 contextScore = Math.max(0, Math.min(15, contextScore));
 
-                const score = Math.max(0, Math.min(100,
-                    targetScore + grammarScore + richnessScore + contextScore));
-                const passed = score >= 72;
+                const rawScore = targetScore + grammarScore + richnessScore + contextScore;
+                const hasBasicStructure = inputForCheck.length >= 4 &&
+                    (/[我你他她它們大家老師同學小朋友孩子家人]/.test(studentText) || /[是有在把被讓和跟與對從向為因為所以但是可是而且如果就]/.test(studentText)) &&
+                    !hasRepetition;
+                const score = Math.max(60, Math.min(95, hasBasicStructure ? 60 + Math.round(rawScore * 0.35) : 60 + Math.round(rawScore * 0.2)));
+                const passed = true;
                 const suggestions = [];
 
                 if (!hasTargetWord) suggestions.push(`請在自己輸入的內容中加入指定語詞「${target || '目標語詞'}」`);
@@ -1189,12 +1108,12 @@
                 if (contextScore < 9) suggestions.push('可加入和題目關鍵字相關的情境');
 
                 let feedback;
-                if (passed) {
-                    feedback = `✅ 造句通過！已正確使用「${target}」，${suggestions.length ? suggestions[0] : '句意清楚又有細節'}。`;
+                if (hasBasicStructure && hasTargetWord) {
+                    feedback = `✅ 句子完整又通順，做得很好！${richnessScore >= 14 ? '描述也很生動。' : '可以再加上形容詞或細節。'}`;
                 } else if (!hasTargetWord) {
-                    feedback = `💡 句子有想法！目前是 ${score} 分，請先在自己輸入的內容中加入「${target}」，再補充完整情境。`;
+                    feedback = `💡 句子很有想法！再加入「${target}」，就更完整了。`;
                 } else {
-                    feedback = `💡 目前是 ${score} 分，已用到「${target}」；${suggestions.slice(0, 2).join('，') || '再讓句子更完整'}，就會更進步喔！`;
+                    feedback = `💡 已用到「${target}」！再補上完整句意或描述細節，會更清楚喔。`;
                 }
 
                 return {
