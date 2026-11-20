@@ -232,18 +232,9 @@
                             </div>
                         </div>
 
-                        <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
-                            <button onclick="app.toggleSampleSentence()" type="button" class="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 flex justify-between items-center transition">
-                                <span class="flex items-center gap-1.5">
-                                    <i class="fa-solid fa-eye text-indigo-500"></i>
-                                    <span>點擊檢視「示範句子」參考</span>
-                                </span>
-                                <i id="sampleArrow" class="fa-solid fa-chevron-down transition-transform"></i>
-                            </button>
-                            <div id="sampleSentenceBox" class="hidden p-3 bg-white border-t border-slate-200 text-xs text-slate-700 font-medium leading-relaxed">
-                                <span class="font-bold text-indigo-700 block mb-1">💡 參考示範：</span>
-                                <p id="sampleSentenceContent"></p>
-                            </div>
+                        <div id="sampleSentenceBox" class="p-3 bg-white border border-slate-200 rounded-2xl text-xs text-slate-700 font-medium leading-relaxed">
+                            <span class="font-bold text-rose-600 block mb-1">💡 參考示範：</span>
+                            <p id="sampleSentenceContent"></p>
                         </div>
 
                         <button id="submitBtn" onclick="app.evaluateSentence()" class="w-full py-3.5 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl font-black text-lg shadow-lg hover:shadow-indigo-200 transition flex items-center justify-center space-x-2">
@@ -710,9 +701,6 @@
 
                 this.clearSentenceInput(false);
 
-                document.getElementById('sampleSentenceBox').classList.add('hidden');
-                document.getElementById('sampleArrow').classList.remove('rotate-180');
-
                 document.getElementById('displayCurrentPlayer').textContent = currentPlayer.name;
                 document.getElementById('inputPromptPlayerName').textContent = currentPlayer.name;
                 document.getElementById('displayProgress').textContent = `${this.currentIdx + 1} / ${this.questions.length}`;
@@ -733,20 +721,6 @@
                 }
 
                 document.getElementById('sampleSentenceContent').textContent = q.goodSample || '尚無示範句子';
-            },
-
-            toggleSampleSentence() {
-                const box = document.getElementById('sampleSentenceBox');
-                const arrow = document.getElementById('sampleArrow');
-                const isHidden = box.classList.contains('hidden');
-
-                if (isHidden) {
-                    box.classList.remove('hidden');
-                    arrow.classList.add('rotate-180');
-                } else {
-                    box.classList.add('hidden');
-                    arrow.classList.remove('rotate-180');
-                }
             },
 
             // 一鍵清除輸入框與預覽
@@ -1093,24 +1067,23 @@
                 const hasRepeatedPunctuation = /([，。！？、])\1+/.test(studentText);
                 const hasRepetition = hasRepeatedSentence || hasRepeatedPhrase || hasRepeatedPunctuation;
 
-                // 1. 目標語詞正確性（30 分）：只看學生自行輸入，不能被 givenPart 補分。
-                const targetScore = hasTargetWord ? 30 : 0;
+                // 目標語詞作為完成條件與回饋依據，不因漏用而重扣分。
+                const targetScore = hasTargetWord ? 10 : 0;
 
-                // 2. 文法通順與結構完整度（30 分）：綜合結構、詞性線索、標點與重複。
+                // 主要評量句子結構與通順程度；符合基本造句即可有穩定的基礎分。
                 let grammarScore = 0;
-                if (studentText) grammarScore += 6;
+                if (studentText) grammarScore += 10;
                 if (inputForCheck.length >= 4) grammarScore += 6;
-                if (inputForCheck.length >= 7) grammarScore += 5;
-                if (/[我你他她它們大家老師同學小朋友孩子家人]/.test(studentText)) grammarScore += 3;
-                if (/[是有在把被讓和跟與對從向為因為所以但是可是而且如果就]/.test(studentText)) grammarScore += 3;
+                if (/[我你他她它們大家老師同學小朋友孩子家人]/.test(studentText)) grammarScore += 4;
+                if (/[是有在把被讓和跟與對從向為因為所以但是可是而且如果就]/.test(studentText)) grammarScore += 4;
                 if (/[吃喝看聽說寫讀做跑走跳玩喜歡幫助發現完成學習]/.test(studentText)) grammarScore += 4;
                 if (/[，。！？]/.test(studentText)) grammarScore += 2;
-                if (hasRepetition) grammarScore -= 10;
-                if (hasRepeatedPunctuation) grammarScore -= 3;
+                if (hasRepetition) grammarScore -= 5;
+                if (hasRepeatedPunctuation) grammarScore -= 2;
                 grammarScore = Math.max(0, Math.min(30, grammarScore));
 
-                // 3. 句意豐富度與修辭細節（25 分）：關鍵字也只能從學生輸入中命中。
-                let richnessScore = Math.min(10, matchedKeywords.length * 5);
+                // 額外關鍵字、形容詞、副詞與修辭用來加分，不作為基本通過門檻。
+                let richnessScore = Math.min(8, matchedKeywords.length * 3);
                 const detailMatches = studentText.match(/的|地|得|很|非常|一起|先|再|突然|終於|認真|開心|漂亮|勇敢|小心|努力|熱鬧|安靜|像|彷彿|因為|所以|雖然|但是|不但|而且/g) || [];
                 richnessScore += Math.min(8, detailMatches.length * 2);
                 if (/[在於從到向對]/.test(studentText)) richnessScore += 3;
@@ -1119,17 +1092,17 @@
                 richnessScore = Math.max(0, Math.min(25, richnessScore));
 
                 // 4. 圖文情境契合度（15 分）：沒有圖片辨識能力，只依文字線索保守推估。
-                let contextScore = studentText ? 6 : 0;
-                contextScore += Math.min(6, matchedKeywords.length * 3);
-                if (/(在家|在學校|在教室|在操場|在公園|早上|下午|晚上|今天|昨天|明天)/.test(studentText)) contextScore += 3;
-                if (hasRepetition) contextScore -= 4;
+                let contextScore = studentText ? 10 : 0;
+                contextScore += Math.min(3, matchedKeywords.length);
+                if (/(在家|在學校|在教室|在操場|在公園|早上|下午|晚上|今天|昨天|明天)/.test(studentText)) contextScore += 2;
+                if (hasRepetition) contextScore -= 2;
                 contextScore = Math.max(0, Math.min(15, contextScore));
 
                 const rawScore = targetScore + grammarScore + richnessScore + contextScore;
                 const hasBasicStructure = inputForCheck.length >= 4 &&
                     (/[我你他她它們大家老師同學小朋友孩子家人]/.test(studentText) || /[是有在把被讓和跟與對從向為因為所以但是可是而且如果就]/.test(studentText)) &&
                     !hasRepetition;
-                const score = Math.max(60, Math.min(95, hasBasicStructure ? 60 + Math.round(rawScore * 0.35) : 60 + Math.round(rawScore * 0.2)));
+                const score = Math.max(60, Math.min(95, 60 + Math.round(rawScore * 0.35)));
                 const passed = true;
                 const suggestions = [];
 
